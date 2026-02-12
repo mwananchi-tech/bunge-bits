@@ -10,6 +10,7 @@ path = "./src/lib.rs"
 
 [dependencies]
 anyhow = { workspace = true }
+async-trait = "0.1.89"
 chrono = { workspace = true }
 itertools = { workspace = true }
 regex = "1.10.6"

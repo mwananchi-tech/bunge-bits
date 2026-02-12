@@ -23,7 +23,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, LazyLock},
 };
-use stream_datastore::{DataStore, Stream};
+use stream_datastore::{DataStore, PgDataStore, Stream};
 use ytdlp_bindings::{AudioProcessor, YtDlp};
 
 use crate::{extract_json_from_script, parse_streams, summary::summarize_linear};
@@ -66,7 +66,7 @@ pub async fn fetch_and_process_streams(max_streams: usize) -> anyhow::Result<()>
     let openai = &OPENAI;
 
     let db_url = std::env::var("DATABASE_URL").context("DATABASE_URL not set")?;
-    let db = DataStore::init(&db_url)
+    let db = PgDataStore::init(&db_url)
         .await
         .context("Failed to initialize database")?;
 
@@ -264,7 +264,7 @@ async fn transcribe_audio(audio_path: PathBuf, openai: &OpenAiClient) -> anyhow:
 async fn summarize_streams(
     streams: &mut [Stream],
     openai: Arc<OpenAiClient>,
-    db: &DataStore,
+    db: &PgDataStore,
 ) -> anyhow::Result<()> {
     for stream in streams.iter_mut() {
         let transcript_path = format!("{WORKDIR}/{}.txt", stream.video_id);
@@ -637,7 +637,7 @@ pub fn chat_completions_text_from_response(
 /// Filter and sort streams that already exist in the database based on their `video_id`.
 pub async fn sort_and_filter_existing_streams(
     max_streams: usize,
-    db: &DataStore,
+    db: &PgDataStore,
     streams: Vec<Stream>,
 ) -> anyhow::Result<Vec<Stream>> {
     let stream_ids = streams
