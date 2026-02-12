@@ -11,4 +11,4 @@ pub mod types;
 pub use app::{cron::start_cron, server::start_server, AppState};
 use parser::{extract_json_from_script, parse_streams};
 pub use process_stream::fetch_and_process_streams;
-pub use processor::Processor;
+pub use processor::LiveStreamProcessor;

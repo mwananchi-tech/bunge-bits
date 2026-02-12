@@ -21,9 +21,9 @@ pub static RE_NUMBER_CHAIN: LazyLock<Regex> =
 pub static RE_NUMERIC_LINE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^[\d.\-, ]{10,}$").unwrap());
 
-// The core stream processor
+// The core YouTube archived live stream stream processor
 #[derive(Debug)]
-pub struct Processor<D>
+pub struct LiveStreamProcessor<D>
 where
     D: DataStore + Send + Sync + 'static,
 {
@@ -50,7 +50,7 @@ impl From<String> for YtHtmlDocument {
     }
 }
 
-impl<D> Processor<D>
+impl<D> LiveStreamProcessor<D>
 where
     D: DataStore + Send + Sync + 'static,
 {
@@ -60,7 +60,7 @@ where
     // const TRANSCRIPT_CHUNK_DELIMITER: &str = "----END_OF_CHUNK----";
 
     pub fn new(workdir: impl Into<PathBuf>, yt_dlp: YtDlp, store: D) -> Self {
-        Processor {
+        LiveStreamProcessor {
             workdir: workdir.into(),
             http_client: reqwest::Client::new(),
             yt_dlp,
@@ -72,7 +72,7 @@ where
     async fn fetch_yt_html_document(&self) -> anyhow::Result<YtHtmlDocument> {
         let yt_html_document = self
             .http_client
-            .get(Processor::<D>::YOUTUBE_STREAM_URL)
+            .get(LiveStreamProcessor::<D>::YOUTUBE_STREAM_URL)
             .header("Accept-Language", "en-US,en;q=0.9")
             .send()
             .await?
@@ -94,7 +94,7 @@ where
     fn download_audio(&self, stream: &Stream, audio_dl_path: &Path) -> anyhow::Result<PathBuf> {
         let stream_url = format!(
             "{}?v={}",
-            Processor::<D>::YOUTUBE_VIDEO_BASE_URL,
+            LiveStreamProcessor::<D>::YOUTUBE_VIDEO_BASE_URL,
             stream.video_id
         );
 
