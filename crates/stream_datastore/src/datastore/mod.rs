@@ -1,18 +1,20 @@
+use std::{collections::HashSet, future::Future};
+
 pub mod postgres;
 
 pub trait DataStore {
-    async fn get_existing_stream_ids(
+    fn get_existing_stream_ids(
         &self,
         video_ids: &[&str],
-    ) -> anyhow::Result<std::collections::HashSet<String>>;
+    ) -> impl Future<Output = anyhow::Result<HashSet<String>>> + Send;
 
-    async fn bulk_insert_streams(
+    fn bulk_insert_streams(
         &self,
         streams: &[crate::Stream],
-    ) -> anyhow::Result<BulkInsertResult>;
+    ) -> impl Future<Output = anyhow::Result<BulkInsertResult>> + Send;
 }
 
-impl<T: DataStore> DataStore for &T {
+impl<T: DataStore + Send + Sync> DataStore for &T {
     async fn get_existing_stream_ids(
         &self,
         video_ids: &[&str],
