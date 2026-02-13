@@ -9,7 +9,7 @@
 //! - `parse_streams`: A function to parse multiple streams from YouTube JSON data.
 //! - `extract_json_from_script`: A function to extract the `ytInitialData` JSON object from a YouTube page's HTML.
 
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use stream_datastore::Stream;
 
@@ -163,7 +163,7 @@ impl TryFrom<VideoRenderer> for StreamWrapper {
 /// # Note
 /// This method is somewhat fragile as it depends on the specific structure of YouTube's
 /// HTML. If YouTube changes how they embed this data, this function may need to be updated.
-pub fn extract_json_from_script<T: for<'a> Deserialize<'a>>(document: &str) -> Result<T, Error> {
+pub fn extract_json_from_script<T: DeserializeOwned>(document: &str) -> Result<T, Error> {
     let re =
         regex::Regex::new(r"(?s)<script[^>]*>\s*var\s+ytInitialData\s*=\s*(\{.*?\});\s*</script>")
             .unwrap();

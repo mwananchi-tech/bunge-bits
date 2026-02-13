@@ -1,5 +1,6 @@
 use std::{
     fs::remove_dir_all,
+    ops::Deref,
     path::{Path, PathBuf},
     sync::LazyLock,
 };
@@ -8,7 +9,7 @@ use anyhow::Context;
 use itertools::Itertools;
 use rayon::prelude::*;
 use regex::Regex;
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use stream_datastore::{DataStore, Stream};
 use ytdlp_bindings::{AudioProcessor, YtDlp};
 
@@ -42,12 +43,20 @@ where
 
 pub struct YtHtmlDocument(String);
 
+impl Deref for YtHtmlDocument {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl YtHtmlDocument {
     pub fn to_json<T>(&self) -> Result<T, crate::error::Error>
     where
-        T: for<'a> Deserialize<'a>,
+        T: DeserializeOwned,
     {
-        extract_json_from_script(&self.0)
+        extract_json_from_script(self)
     }
 }
 
@@ -66,7 +75,6 @@ where
     ///  Parliament of Kenya Channel Stream URL
     const YOUTUBE_STREAM_URL: &str = "https://www.youtube.com/@ParliamentofKenyaChannel/streams";
     const YOUTUBE_VIDEO_BASE_URL: &str = "https://youtube.com/watch";
-    // const TRANSCRIPT_CHUNK_DELIMITER: &str = "----END_OF_CHUNK----";
 
     pub fn new(
         workdir: impl Into<PathBuf>,
@@ -97,8 +105,7 @@ where
             .text()
             .await?;
 
-        let yt_html_document = YtHtmlDocument(yt_html_document);
-        Ok(yt_html_document)
+        Ok(yt_html_document.into())
     }
 
     /// Parses the `ytInitialData` script data from the youtube html document
@@ -216,7 +223,7 @@ where
         let workdir_ref = self.workdir.as_path();
         let audio_dl_path = workdir_ref.join("audio");
 
-        let _stream_audio_paths = streams
+        let stream_audio_paths = streams
             .par_iter()
             .map(|stream| {
                 self.download_audio(stream, &audio_dl_path)

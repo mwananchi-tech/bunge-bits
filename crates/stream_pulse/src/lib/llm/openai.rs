@@ -199,6 +199,7 @@ impl<F: AudioProcessor + Send + Sync> Transcriber for OpenAIClient<F> {
                 .ok_or_else(|| OpenAIError::Ffmpeg("Invalid file path".into()))?;
 
             tracing::info!("Splitting audio to chunks");
+            // XXX: intentional blocking
             self.ffmpeg
                 .split_audio_to_chunks(
                     &file_path,
