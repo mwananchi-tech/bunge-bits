@@ -1,9 +1,9 @@
-use std::{future::Future, path::PathBuf};
+use std::{future::Future, path::PathBuf, u16};
 
 use serde::de::DeserializeOwned;
 
 pub trait Transcriber {
-    const MODEL_NAME: &'static str;
+    const TRANSCRIPTION_MODEL: &'static str;
 
     type Response: DeserializeOwned;
     type Error;
@@ -11,12 +11,12 @@ pub trait Transcriber {
     fn transcribe(
         &self,
         audio_input: AudioInput,
-    ) -> impl Future<Output = Result<Self::Response, Self::Error>> + Send;
+    ) -> impl Future<Output = Result<Self::Response, Self::Error>> + Send + Sync;
 }
 
 pub enum AudioInput {
     Chunked {
-        chunk_len_seconds: usize,
+        chunk_duration_seconds: u16,
         chunks_dir_path: PathBuf,
         file_path: PathBuf,
     },

@@ -1,5 +1,3 @@
-mod summarizer;
-mod transcriber;
-
-pub use summarizer::Summarizer;
-pub use transcriber::Transcriber;
+pub mod openai;
+pub mod summarizer;
+pub mod transcriber;

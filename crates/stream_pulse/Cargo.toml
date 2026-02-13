@@ -34,6 +34,7 @@ stream_datastore = { version = "0.1.0", path = "../stream_datastore" }
 thiserror = { workspace = true }
 tokio = { version = "1", features = ["full"] }
 tokio-cron-scheduler = "0.14.0"
+tokio-util = "0.7.18"
 tower-http = { version = "0.6.6", features = ["cors"] }
 tracing = { workspace = true }
 tracing-bunyan-formatter = "0.3"

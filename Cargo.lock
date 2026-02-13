@@ -3233,7 +3233,6 @@ name = "stream_datastore"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "chrono",
  "itertools",
  "regex",
@@ -3266,6 +3265,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tokio-cron-scheduler",
+ "tokio-util",
  "tower-http",
  "tracing",
  "tracing-bunyan-formatter",
@@ -3579,9 +3579,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.12"
+version = "0.7.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61e7c3654c13bcd040d4a03abee2c75b1d14a37b423cf5a813ceae1cc903ec6a"
+checksum = "9ae9cec805b01e8fc3fd2fe289f89149a9b66dd16786abd8b19cfa7b48cb0098"
 dependencies = [
  "bytes",
  "futures-core",
