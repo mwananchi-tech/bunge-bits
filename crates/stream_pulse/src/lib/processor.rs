@@ -9,12 +9,11 @@ use anyhow::Context;
 use itertools::Itertools;
 use rayon::prelude::*;
 use regex::Regex;
-use serde::de::DeserializeOwned;
 use stream_datastore::{DataStore, Stream};
 use ytdlp_bindings::{AudioProcessor, YtDlp};
 
 use crate::{
-    parser::{extract_json_from_script, parse_streams},
+    parser::{parse_streams, YtHtmlDocument},
     Summarizer, Transcriber,
 };
 
@@ -39,31 +38,6 @@ where
     store: D,
     transcriber: T,
     summarizer: S,
-}
-
-pub struct YtHtmlDocument(String);
-
-impl Deref for YtHtmlDocument {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl YtHtmlDocument {
-    pub fn to_json<T>(&self) -> Result<T, crate::error::Error>
-    where
-        T: DeserializeOwned,
-    {
-        extract_json_from_script(self)
-    }
-}
-
-impl From<String> for YtHtmlDocument {
-    fn from(value: String) -> Self {
-        YtHtmlDocument(value)
-    }
 }
 
 impl<D, T, S> LiveStreamProcessor<D, T, S>

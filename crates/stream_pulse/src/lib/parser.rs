@@ -9,11 +9,19 @@
 //! - `parse_streams`: A function to parse multiple streams from YouTube JSON data.
 //! - `extract_json_from_script`: A function to extract the `ytInitialData` JSON object from a YouTube page's HTML.
 
+use std::{ops::Deref, sync::LazyLock};
+
+use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use stream_datastore::Stream;
 
 use crate::{error::Error, types::VideoRenderer};
+
+static YT_INTIALDATA_RE: LazyLock<Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"(?s)<script[^>]*>\s*var\s+ytInitialData\s*=\s*(\{.*?\});\s*</script>")
+        .unwrap()
+});
 
 /// Parses multiple streams from the provided JSON data.
 ///
@@ -141,6 +149,43 @@ impl TryFrom<VideoRenderer> for StreamWrapper {
     }
 }
 
+pub struct YtHtmlDocument(String);
+
+impl Deref for YtHtmlDocument {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl YtHtmlDocument {
+    pub fn new(doc: String) -> Self {
+        YtHtmlDocument(doc)
+    }
+
+    pub fn to_json<T>(&self) -> Result<T, crate::error::Error>
+    where
+        T: DeserializeOwned,
+    {
+        let result = YT_INTIALDATA_RE
+            .captures(self)
+            .and_then(|cap| cap.get(1))
+            .and_then(|m| serde_json::from_str(m.as_str()).ok())
+            .ok_or(Error::ParseError(
+                "Failed to extract ytInitialData from the page's script tag",
+            ));
+
+        result
+    }
+}
+
+impl From<String> for YtHtmlDocument {
+    fn from(value: String) -> Self {
+        YtHtmlDocument(value)
+    }
+}
+
 /// Extracts the `ytInitialData` JSON object from a YouTube page's HTML script.
 ///
 /// # Context
@@ -163,11 +208,8 @@ impl TryFrom<VideoRenderer> for StreamWrapper {
 /// # Note
 /// This method is somewhat fragile as it depends on the specific structure of YouTube's
 /// HTML. If YouTube changes how they embed this data, this function may need to be updated.
-pub fn extract_json_from_script<T: DeserializeOwned>(document: &str) -> Result<T, Error> {
-    let re =
-        regex::Regex::new(r"(?s)<script[^>]*>\s*var\s+ytInitialData\s*=\s*(\{.*?\});\s*</script>")
-            .unwrap();
-    let result = re
+fn extract_json_from_script<T: DeserializeOwned>(document: &str) -> Result<T, Error> {
+    let result = YT_INTIALDATA_RE
         .captures(document)
         .and_then(|cap| cap.get(1))
         .and_then(|m| serde_json::from_str(m.as_str()).ok())

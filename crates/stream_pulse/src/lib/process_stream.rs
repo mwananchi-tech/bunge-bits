@@ -26,7 +26,7 @@ use std::{
 use stream_datastore::{DataStore, PgDataStore, Stream};
 use ytdlp_bindings::{AudioProcessor, YtDlp};
 
-use crate::{extract_json_from_script, parse_streams, summary::summarize_linear};
+use crate::{parse_streams, summary::summarize_linear, YtHtmlDocument};
 
 static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 static YTDLP: LazyLock<YtDlp> = LazyLock::new(|| {
@@ -70,15 +70,16 @@ pub async fn fetch_and_process_streams(max_streams: usize) -> anyhow::Result<()>
         .await
         .context("Failed to initialize database")?;
 
-    let yt_html_document = client
+    let yt_html_doc = client
         .get(YOUTUBE_STREAM_URL)
         .header("Accept-Language", "en-US,en;q=0.9")
         .send()
         .await?
         .text()
-        .await?;
+        .await
+        .map(YtHtmlDocument::new)?;
 
-    match extract_json_from_script(&yt_html_document) {
+    match yt_html_doc.to_json::<serde_json::Value>() {
         Ok(json) => {
             let streams = parse_streams(&json)?;
             tracing::info!(count = streams.len(), "Processing streams");

@@ -14,6 +14,6 @@ pub use llm::{
     summarizer::Summarizer,
     transcriber::{AudioInput, Transcriber},
 };
-use parser::{extract_json_from_script, parse_streams};
+use parser::{parse_streams, YtHtmlDocument};
 pub use process_stream::fetch_and_process_streams;
 pub use processor::LiveStreamProcessor;
