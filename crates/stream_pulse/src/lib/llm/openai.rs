@@ -74,7 +74,8 @@ impl<F: AudioProcessor> OpenAIClient<F> {
             .bearer_auth(&self.api_key)
             .multipart(form)
             .send()
-            .await?;
+            .await
+            .inspect_err(|e| tracing::error!(error = %e, "Failed to make http request"))?;
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
@@ -123,7 +124,8 @@ impl<F: AudioProcessor> OpenAIClient<F> {
             .bearer_auth(&self.api_key)
             .json(&body)
             .send()
-            .await?;
+            .await
+            .inspect_err(|e| tracing::error!(error = %e, "Failed to make http request"))?;
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
@@ -180,6 +182,7 @@ impl<F: AudioProcessor + Send + Sync> Transcriber for OpenAIClient<F> {
             chunk_duration_seconds,
         } = input
         else {
+            tracing::error!(audio_input = ?input, "Unspoorted audio_input");
             return Err(OpenAIError::UnsupportedInput);
         };
 
@@ -195,12 +198,14 @@ impl<F: AudioProcessor + Send + Sync> Transcriber for OpenAIClient<F> {
                 .and_then(|s| s.to_str())
                 .ok_or_else(|| OpenAIError::Ffmpeg("Invalid file path".into()))?;
 
+            tracing::info!("Splitting audio to chunks");
             self.ffmpeg
                 .split_audio_to_chunks(
                     &file_path,
                     chunk_duration_seconds,
                     chunks_dir_path.join(format!("{base_name}_%03d.mp3")),
                 )
+                .inspect_err(|e| tracing::error!(error = %e, "Failed to split audio to chunks"))
                 .map_err(|e| OpenAIError::Ffmpeg(e.to_string()))?;
         }
 
@@ -220,7 +225,8 @@ impl<F: AudioProcessor + Send + Sync> Transcriber for OpenAIClient<F> {
         for chunk in &chunks {
             let response = self
                 .send_transcribe_request(chunk, Self::TRANSCRIPTION_MODEL, previous_text)
-                .await?;
+                .await
+                .inspect_err(|e| tracing::error!(error = %e, "Failed to transcribe audio"))?;
 
             duration += response.duration;
 
@@ -263,7 +269,8 @@ impl<F: AudioProcessor> Summarizer for OpenAIClient<F> {
     ) -> Result<Self::ResponseType, Self::Error> {
         let response = self
             .send_completion_request(Self::SUMMARIZER_MODEL, content)
-            .await?;
+            .await
+            .inspect_err(|e| tracing::error!(error = %e, "Failed to summarize content"))?;
 
         let summary = response
             .choices

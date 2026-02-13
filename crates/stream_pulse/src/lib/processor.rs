@@ -86,6 +86,7 @@ where
     }
 
     /// Loads the youtube streams html page
+    #[tracing::instrument(skip(self))]
     async fn fetch_yt_html_document(&self) -> anyhow::Result<YtHtmlDocument> {
         let yt_html_document = self
             .http_client
@@ -101,6 +102,7 @@ where
     }
 
     /// Parses the `ytInitialData` script data from the youtube html document
+    #[tracing::instrument(skip_all)]
     async fn parse_streams(&self, doc: &YtHtmlDocument) -> anyhow::Result<Vec<Stream>> {
         let json = doc.to_json::<serde_json::Value>()?;
         let streams = parse_streams(&json)?;
@@ -108,6 +110,7 @@ where
     }
 
     /// Downloads youtube video via `yt_dlp` and stores it in `audio_dl_path`
+    #[tracing::instrument(skip(self))]
     fn download_audio(&self, stream: &Stream, audio_dl_path: &Path) -> anyhow::Result<PathBuf> {
         let stream_url = format!("{}?v={}", Self::YOUTUBE_VIDEO_BASE_URL, stream.video_id);
 
@@ -139,6 +142,7 @@ where
 
     /// Performs cleanup operations of the downloaded audio in `audio_dl_path`
     /// Returns the path of the final cleaned audio path
+    #[tracing::instrument(skip(self))]
     fn process_audio(&self, stream: &Stream, audio_dl_path: &Path) -> anyhow::Result<PathBuf> {
         // intermediate cleaned file paths
         let base_name = &stream.video_id;
@@ -160,6 +164,7 @@ where
         Ok(trimmed_path)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn sort_filter_limit_streams(
         &self,
         streams: Vec<Stream>,
@@ -195,6 +200,7 @@ where
         Ok(result)
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn run(self, max_streams: usize) -> anyhow::Result<()> {
         let yt_html_doc = self.fetch_yt_html_document().await?;
 

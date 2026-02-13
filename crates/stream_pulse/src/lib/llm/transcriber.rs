@@ -14,6 +14,7 @@ pub trait Transcriber {
     ) -> impl Future<Output = Result<Self::Response, Self::Error>> + Send + Sync;
 }
 
+#[derive(Debug, Clone)]
 pub enum AudioInput {
     Chunked {
         chunk_duration_seconds: u16,
