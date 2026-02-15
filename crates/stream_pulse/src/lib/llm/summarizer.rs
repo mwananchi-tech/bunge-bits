@@ -1,16 +1,25 @@
-use std::future::Future;
+use std::{fmt::Debug, future::Future};
 
-use serde::{de::DeserializeOwned, Serialize};
+use serde::Deserialize;
 
 pub trait Summarizer {
-    const CONTEXT_WINDOW_LIMIT: usize = 128_000 - 18_000;
-    const SUMMARIZER_MODEL: &str;
+    const CONTEXT_WINDOW_LIMIT: usize;
+    const SUMMARIZER_MODEL: &'static str;
 
-    type ResponseType: DeserializeOwned;
-    type Error;
+    type Error: Debug;
 
-    fn summarize<M: Serialize>(
+    fn summarize(
         &self,
-        content: impl Into<String>,
-    ) -> impl Future<Output = Result<Self::ResponseType, Self::Error>>;
+        content: &str,
+    ) -> impl Future<Output = Result<SummaryResponse, Self::Error>> + Send + Sync;
+
+    fn count_tokens(&self, _content: &str) -> Result<usize, Self::Error> {
+        Ok(0)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SummaryResponse {
+    // define based on your prompt structure
+    pub summary: String,
 }

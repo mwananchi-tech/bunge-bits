@@ -1,28 +1,18 @@
 use std::{
     fs::remove_dir_all,
-    ops::Deref,
     path::{Path, PathBuf},
-    sync::LazyLock,
 };
 
 use anyhow::Context;
 use itertools::Itertools;
 use rayon::prelude::*;
-use regex::Regex;
 use stream_datastore::{DataStore, Stream};
 use ytdlp_bindings::{AudioProcessor, YtDlp};
 
 use crate::{
     parser::{parse_streams, YtHtmlDocument},
-    Summarizer, Transcriber,
+    AudioInput, Summarizer, Transcriber,
 };
-
-// Repeated number chains like 1.0-2-1.0-1-1-...
-pub static RE_NUMBER_CHAIN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)(\d+(?:[.\-]\d+){5,})").unwrap());
-// Numeric-only garbage lines like "1.0-1-1-1-1-1-1"
-pub static RE_NUMERIC_LINE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^[\d.\-, ]{10,}$").unwrap());
 
 // The core YouTube archived live stream stream processor
 #[derive(Debug)]
@@ -135,10 +125,13 @@ where
 
         // perform cleanup if final trimmed audio does not exist
         if !trimmed_path.exists() {
-            self.yt_dlp.denoise_audio(audio_mp3_path, &denoised_path)?;
             self.yt_dlp
-                .normalize_volume(&denoised_path, &normalized_path)?;
-            self.yt_dlp.trim_silence(&normalized_path, &trimmed_path)?;
+                .denoise_audio(audio_mp3_path, &denoised_path)
+                .and_then(|_| {
+                    self.yt_dlp
+                        .normalize_volume(&denoised_path, &normalized_path)
+                })
+                .and_then(|_| self.yt_dlp.trim_silence(&normalized_path, &trimmed_path))?;
         } else {
             tracing::debug!("Cleaned audio already exists at {:?}", trimmed_path);
         }
@@ -182,13 +175,13 @@ where
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn run(self, max_streams: usize) -> anyhow::Result<()> {
+    pub async fn run(self, max_streams: usize, should_chunk: bool) -> anyhow::Result<()> {
         let yt_html_doc = self.fetch_yt_html_document().await?;
 
         let streams = self.parse_streams(&yt_html_doc).await?;
         tracing::info!(count = streams.len(), "Processing streams");
 
-        let streams = self.sort_filter_limit_streams(streams, max_streams).await?;
+        let mut streams = self.sort_filter_limit_streams(streams, max_streams).await?;
         if streams.is_empty() {
             tracing::info!("No streams to process at this time");
             return Ok(());
@@ -198,7 +191,7 @@ where
         let audio_dl_path = workdir_ref.join("audio");
 
         let stream_audio_paths = streams
-            .par_iter()
+            .par_iter_mut()
             .map(|stream| {
                 self.download_audio(stream, &audio_dl_path)
                     .and_then(|dl_path| self.process_audio(stream, &dl_path))
@@ -206,9 +199,35 @@ where
             })
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        // TODO: Transcribe
+        for (audio_path, stream) in stream_audio_paths {
+            let audio_input = if should_chunk {
+                let chunks_dir_path = workdir_ref.join("audio").join(&stream.video_id);
 
-        // TODO: Summarize
+                AudioInput::Chunked {
+                    chunk_duration_seconds: 900, // 15 * 60 seconds
+                    chunks_dir_path,
+                    file_path: audio_path,
+                }
+            } else {
+                AudioInput::File(audio_path)
+            };
+            let transcribe_resp = self
+                .transcriber
+                .transcribe(audio_input)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to transcribe audio: {e:?}"))?;
+
+            let summary_resp = self
+                .summarizer
+                .summarize(&transcribe_resp.text)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to summarize transcript: {e:?}"))?;
+
+            stream.summary_md = Some(summary_resp.summary)
+            // TODO: Maybe just insert a single stream
+        }
+
+        self.store.bulk_insert_streams(&streams).await?;
 
         Ok(())
     }

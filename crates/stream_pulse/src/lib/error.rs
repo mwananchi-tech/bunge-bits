@@ -7,4 +7,6 @@ pub enum Error {
     DeserializationError(#[from] serde_json::Error),
     #[error(transparent)]
     InternalError(#[from] anyhow::Error),
+    #[error("Failed to transcribe audio: {0}")]
+    TranscribeError(anyhow::Error),
 }

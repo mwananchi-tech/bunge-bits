@@ -1,17 +1,16 @@
-use std::{future::Future, path::PathBuf, u16};
+use std::{fmt::Debug, future::Future, path::PathBuf};
 
-use serde::de::DeserializeOwned;
+use serde::Deserialize;
 
 pub trait Transcriber {
-    const TRANSCRIPTION_MODEL: &'static str;
+    const TRANSCRIBER_MODEL: &'static str;
 
-    type Response: DeserializeOwned;
-    type Error;
+    type Error: Debug;
 
     fn transcribe(
         &self,
         audio_input: AudioInput,
-    ) -> impl Future<Output = Result<Self::Response, Self::Error>> + Send + Sync;
+    ) -> impl Future<Output = Result<TranscribeResponse, Self::Error>> + Send + Sync;
 }
 
 #[derive(Debug, Clone)]
@@ -22,4 +21,18 @@ pub enum AudioInput {
         file_path: PathBuf,
     },
     File(PathBuf),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TranscribeResponse {
+    pub duration: f64,
+    pub text: String,
+    pub segments: Option<Vec<TranscribeSegment>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TranscribeSegment {
+    pub start: f64,
+    pub end: f64,
+    pub text: String,
 }

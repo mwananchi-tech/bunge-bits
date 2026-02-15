@@ -1,11 +1,16 @@
 use std::path::PathBuf;
 
+use another_tiktoken_rs::cl100k_base;
 use reqwest::Client;
 use serde::Deserialize;
 use ytdlp_bindings::AudioProcessor;
 
-use crate::{AudioInput, Summarizer, Transcriber};
+use crate::{
+    llm::{summarizer::SummaryResponse, transcriber::TranscribeResponse},
+    AudioInput, Summarizer, Transcriber,
+};
 
+#[derive(Debug, Clone)]
 pub struct OpenAIClient<F: AudioProcessor> {
     client: Client,
     api_key: String,
@@ -95,6 +100,7 @@ impl<F: AudioProcessor> OpenAIClient<F> {
     ) -> Result<CompletionResponse, OpenAIError> {
         let body = serde_json::json!({
             "model": model_name.into(),
+            // XXX: for best accuracy, web search will always be performed
             "web_search_options": {
                 "search_context_size": "medium",
                 "user_location": {
@@ -138,20 +144,6 @@ impl<F: AudioProcessor> OpenAIClient<F> {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TranscribeResponse {
-    pub duration: f64,
-    pub text: String,
-    pub segments: Option<Vec<TranscribeSegment>>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TranscribeSegment {
-    pub start: f64,
-    pub end: f64,
-    pub text: String,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct CompletionResponse {
     pub id: String,
     pub choices: Vec<CompletionChoice>,
@@ -171,11 +163,11 @@ pub struct CompletionMessage {
 }
 
 impl<F: AudioProcessor + Send + Sync> Transcriber for OpenAIClient<F> {
-    const TRANSCRIPTION_MODEL: &'static str = "whisper-1";
-    type Response = TranscribeResponse;
+    const TRANSCRIBER_MODEL: &'static str = "whisper-1";
+
     type Error = OpenAIError;
 
-    async fn transcribe(&self, input: AudioInput) -> Result<Self::Response, Self::Error> {
+    async fn transcribe(&self, input: AudioInput) -> Result<TranscribeResponse, Self::Error> {
         let AudioInput::Chunked {
             file_path,
             chunks_dir_path,
@@ -225,7 +217,7 @@ impl<F: AudioProcessor + Send + Sync> Transcriber for OpenAIClient<F> {
 
         for chunk in &chunks {
             let response = self
-                .send_transcribe_request(chunk, Self::TRANSCRIPTION_MODEL, previous_text)
+                .send_transcribe_request(chunk, Self::TRANSCRIBER_MODEL, previous_text)
                 .await
                 .inspect_err(|e| tracing::error!(error = %e, "Failed to transcribe audio"))?;
 
@@ -253,21 +245,22 @@ impl<F: AudioProcessor + Send + Sync> Transcriber for OpenAIClient<F> {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct SummaryResponse {
-    // define based on your prompt structure
-    pub summary: String,
-}
-
-impl<F: AudioProcessor> Summarizer for OpenAIClient<F> {
+impl<F: AudioProcessor + Send + Sync> Summarizer for OpenAIClient<F> {
     const SUMMARIZER_MODEL: &'static str = "gpt-4o-search-preview";
-    type ResponseType = SummaryResponse;
+    const CONTEXT_WINDOW_LIMIT: usize = 128_000 - 1_000;
+
     type Error = OpenAIError;
 
-    async fn summarize<M: serde::Serialize>(
-        &self,
-        content: impl Into<String>,
-    ) -> Result<Self::ResponseType, Self::Error> {
+    async fn summarize(&self, content: &str) -> Result<SummaryResponse, Self::Error> {
+        let token_count = self.count_tokens(content)?;
+
+        if token_count > Self::CONTEXT_WINDOW_LIMIT {
+            return Err(OpenAIError::Api {
+                status: 0,
+                message: "Token limit exceeded".into(),
+            });
+        }
+
         let response = self
             .send_completion_request(Self::SUMMARIZER_MODEL, content)
             .await
@@ -283,5 +276,13 @@ impl<F: AudioProcessor> Summarizer for OpenAIClient<F> {
             })?;
 
         Ok(SummaryResponse { summary })
+    }
+
+    fn count_tokens(&self, content: &str) -> Result<usize, Self::Error> {
+        let bpe = cl100k_base().map_err(|e| OpenAIError::Api {
+            status: 0,
+            message: e.to_string(),
+        })?;
+        Ok(bpe.encode_with_special_tokens(content).len())
     }
 }
