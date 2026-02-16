@@ -4,7 +4,13 @@ use ytdlp_bindings::{AudioProcessor, YtDlp};
 
 use crate::yt::AudioHandler;
 
-pub struct YtDlpWrapper(pub YtDlp);
+pub struct YtDlpWrapper(YtDlp);
+
+impl YtDlpWrapper {
+    pub fn new(yt_dlp: YtDlp) -> Self {
+        YtDlpWrapper(yt_dlp)
+    }
+}
 
 impl Deref for YtDlpWrapper {
     type Target = YtDlp;

@@ -2,7 +2,8 @@ use std::ops::Deref;
 
 use crate::yt::ChannelScraper;
 
-pub struct Scraper(pub reqwest::Client);
+#[derive(Default)]
+pub struct Scraper(reqwest::Client);
 
 impl Deref for Scraper {
     type Target = reqwest::Client;
