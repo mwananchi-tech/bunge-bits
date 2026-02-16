@@ -6,8 +6,10 @@
 //! The module uses sqlx for database operations and provides an abstraction layer
 //! for CRUD operations on streams and their associated closed captions.
 
+mod datastore;
 mod domain;
-mod store;
 
+// pub use datastore::DataStore;
+pub use datastore::postgres::PgDataStore;
+pub use datastore::{BulkInsertResult, DataStore};
 pub use domain::{Stream, StreamCategory};
-pub use store::DataStore;

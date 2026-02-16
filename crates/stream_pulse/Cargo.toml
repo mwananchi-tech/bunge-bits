@@ -16,24 +16,23 @@ path = "./src/lib/lib.rs"
 [dependencies]
 another-tiktoken-rs = { version = "0.1.2", features = ["async-openai"] }
 anyhow = "1.0"
-axum = "0.8.4"
 chrono = { workspace = true }
 chrono-tz = "0.10.0"
 dotenvy = "0.15.7"
 futures = "0.3.30"
 itertools = { workspace = true }
-openai_dive = "1.2.4"
 rayon = "1.5"
 regex = "1.10.6"
-reqwest = { version = "0.12", features = ["json"] }
-sentry = "0.42.0"
-sentry-tracing = "0.42.0"
+reqwest = { version = "0.13", features = ["json", "multipart"] }
+sentry = "0.46"
+sentry-tracing = "0.46"
 serde = { workspace = true }
 serde_json = { workspace = true }
 stream_datastore = { version = "0.1.0", path = "../stream_datastore" }
 thiserror = { workspace = true }
+# TODO: limit tokio features
 tokio = { version = "1", features = ["full"] }
-tokio-cron-scheduler = "0.14.0"
+tokio-util = "0.7.18"
 tower-http = { version = "0.6.6", features = ["cors"] }
 tracing = { workspace = true }
 tracing-bunyan-formatter = "0.3"
@@ -42,8 +41,8 @@ tracing-subscriber = { version = "0.3", features = [
   "json",
   "registry",
 ] }
-uuid = { version = "1.17.0", features = ["v4"] }
 ytdlp_bindings = { version = "0.1.0", path = "../ytdlp_bindings" }
 
 [dev-dependencies]
+# TODO: Move to prod dependency - expose a cli
 clap = { version = "4.5.40", features = ["derive"] }
