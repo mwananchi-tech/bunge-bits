@@ -1,3 +1,5 @@
+pub mod builder;
+
 use std::{fs::remove_dir_all, path::PathBuf};
 
 use anyhow::Context;
@@ -7,11 +9,11 @@ use stream_datastore::{DataStore, Stream};
 
 use crate::{
     parser::{parse_streams, YtHtmlDocument},
+    processor::builder::ChunkingConfig,
     yt::{AudioHandler, ChannelScraper},
     AudioInput, Summarizer, Transcriber,
 };
 
-// The core YouTube archived live stream stream processor
 #[derive(Debug)]
 pub struct LiveStreamProcessor<D, T, S, A, P>
 where
@@ -27,6 +29,8 @@ where
     summarizer: S,
     audio_handler: A,
     channel_scraper: P,
+    max_streams: usize,
+    chunking_config: Option<ChunkingConfig>,
 }
 
 impl<D, T, S, A, P> LiveStreamProcessor<D, T, S, A, P>
@@ -37,28 +41,6 @@ where
     A: AudioHandler + Send + Sync + 'static,
     P: ChannelScraper + Send + Sync + 'static,
 {
-    ///  Parliament of Kenya Channel Stream URL
-    const YOUTUBE_STREAM_URL: &str = "https://www.youtube.com/@ParliamentofKenyaChannel/streams";
-    const YOUTUBE_VIDEO_BASE_URL: &str = "https://youtube.com/watch";
-
-    pub fn new(
-        workdir: impl Into<PathBuf>,
-        store: D,
-        transcriber: T,
-        summarizer: S,
-        audio_handler: A,
-        channel_scraper: P,
-    ) -> Self {
-        LiveStreamProcessor {
-            workdir: workdir.into(),
-            store,
-            transcriber,
-            summarizer,
-            audio_handler,
-            channel_scraper,
-        }
-    }
-
     /// Parses the `ytInitialData` script data from the youtube html document
     #[tracing::instrument(skip_all)]
     async fn parse_streams(&self, doc: &YtHtmlDocument) -> anyhow::Result<Vec<Stream>> {
@@ -68,15 +50,12 @@ where
     }
 
     #[tracing::instrument(skip_all)]
-    async fn sort_filter_limit_streams(
-        &self,
-        streams: Vec<Stream>,
-        max_streams: usize,
-    ) -> anyhow::Result<Vec<Stream>> {
+    async fn sort_filter_limit_streams(&self, streams: Vec<Stream>) -> anyhow::Result<Vec<Stream>> {
         let stream_ids = streams
             .iter()
             .map(|s| s.video_id.as_str())
             .collect::<Vec<_>>();
+
         let existing_stream_ids = self
             .store
             .get_existing_stream_ids(&stream_ids)
@@ -89,14 +68,11 @@ where
         let result = streams
             .iter()
             .filter(|s| !existing_stream_ids.contains(&s.video_id))
-            // sort filtered streams by timestamp ascending (older streams first)
-            // newer streams will “wait their turn” behind older unprocessed ones.
             .sorted_by(|a, b| {
                 a.timestamp_from_time_ago()
                     .cmp(&b.timestamp_from_time_ago())
             })
-            // return the first `max_streams` streams to avoid overloading system
-            .take(max_streams)
+            .take(self.max_streams)
             .cloned()
             .collect::<Vec<_>>();
 
@@ -104,15 +80,16 @@ where
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn run(self, max_streams: usize, should_chunk: bool) -> anyhow::Result<()> {
+    pub async fn run(self) -> anyhow::Result<()> {
         let yt_html_doc = self
             .channel_scraper
             .scrape_channel()
             .await
             .map_err(|e| anyhow::anyhow!("Failed to scrape yt html document: {e:?}"))?;
+
         let streams = self.parse_streams(&yt_html_doc).await?;
 
-        let mut streams = self.sort_filter_limit_streams(streams, max_streams).await?;
+        let mut streams = self.sort_filter_limit_streams(streams).await?;
         if streams.is_empty() {
             tracing::info!("No streams to process at this time");
             return Ok(());
@@ -132,18 +109,15 @@ where
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         for (audio_path, stream) in stream_audio_paths {
-            let audio_input = if should_chunk {
-                let chunks_dir_path = workdir_ref.join("audio").join(&stream.video_id);
-
-                // TODO: pass these as configurations
-                AudioInput::Chunked {
-                    chunk_duration_seconds: 900, // 15 * 60 seconds
-                    chunks_dir_path,
+            let audio_input = match &self.chunking_config {
+                Some(config) => AudioInput::Chunked {
+                    chunk_duration_seconds: config.chunk_duration_seconds,
+                    chunks_dir_path: workdir_ref.join("audio").join(&stream.video_id),
                     file_path: audio_path,
-                }
-            } else {
-                AudioInput::File(audio_path)
+                },
+                None => AudioInput::File(audio_path),
             };
+
             let transcribe_resp = self
                 .transcriber
                 .transcribe(audio_input)

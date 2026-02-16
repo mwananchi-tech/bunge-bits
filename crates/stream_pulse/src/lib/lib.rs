@@ -17,4 +17,4 @@ pub use llm::{
 };
 use parser::{parse_streams, YtHtmlDocument};
 pub use process_stream::fetch_and_process_streams;
-pub use processor::LiveStreamProcessor;
+pub use processor::{builder::LiveStreamProcessorBuilder, LiveStreamProcessor};
