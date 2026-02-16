@@ -2,12 +2,6 @@
 //!
 //! This module provides functionality to scrape and parse stream data from YouTube,
 //! specifically tailored for the Parliament of Kenya Channel live streams.
-//!
-//! ## Key Components
-//!
-//! - `Stream`: A struct representing a single YouTube stream.
-//! - `parse_streams`: A function to parse multiple streams from YouTube JSON data.
-//! - `extract_json_from_script`: A function to extract the `ytInitialData` JSON object from a YouTube page's HTML.
 
 use std::{ops::Deref, sync::LazyLock};
 
@@ -186,40 +180,6 @@ impl From<String> for YtHtmlDocument {
     }
 }
 
-/// Extracts the `ytInitialData` JSON object from a YouTube page's HTML script.
-///
-/// # Context
-/// YouTube dynamically loads much of its page content using JavaScript. The initial
-/// data for the page, including video information, is embedded in the HTML as a
-/// JavaScript variable named `ytInitialData`. This function extracts that data,
-/// allowing us to access it without executing JavaScript.
-///
-/// # How it works
-/// 1. Uses a regular expression to find the `ytInitialData` variable assignment in the script.
-/// 2. Extracts the JSON string from within that assignment.
-/// 3. Parses the extracted string into a Serde JSON Value.
-///
-/// # Parameters
-/// * `document`: The entire HTML content of the YouTube page as a string.
-///
-/// # Returns
-/// * `Option<T>`: Some(T) if the JSON was successfully extracted and parsed, None if the JSON couldn't be found or parsed.
-///
-/// # Note
-/// This method is somewhat fragile as it depends on the specific structure of YouTube's
-/// HTML. If YouTube changes how they embed this data, this function may need to be updated.
-fn extract_json_from_script<T: DeserializeOwned>(document: &str) -> Result<T, Error> {
-    let result = YT_INTIALDATA_RE
-        .captures(document)
-        .and_then(|cap| cap.get(1))
-        .and_then(|m| serde_json::from_str(m.as_str()).ok())
-        .ok_or(Error::ParseError(
-            "Failed to extract ytInitialData from the page's script tag",
-        ));
-
-    result
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_successful_extraction() {
-        let html_content = r#"
+        let html = r#"
             <html>
                 <head>
                     <script nonce="gZTn8MILMQFuWon1rDk2VA">
@@ -240,16 +200,15 @@ mod tests {
             </html>
         "#;
 
-        let result = extract_json_from_script::<Value>(html_content);
-        println!("Extraction result: {:?}", result);
+        let doc = YtHtmlDocument::from(html.to_string());
+        let result = doc.to_json::<Value>();
         assert!(result.is_ok(), "Failed to extract JSON: {:?}", result.err());
-        let json = result.unwrap();
-        assert_eq!(json, json!({"key": "value", "number": 42}));
+        assert_eq!(result.unwrap(), json!({"key": "value", "number": 42}));
     }
 
     #[test]
     fn test_extraction_with_special_characters() {
-        let html_content_special = r#"
+        let html = r#"
             <script nonce="gZTn8MILMQFuWon1rDk2VA">
                 var ytInitialData = {
                     "key": "value with \"quotes\" and \n newline"
@@ -257,14 +216,10 @@ mod tests {
             </script>
         "#;
 
-        let result = extract_json_from_script::<Value>(html_content_special);
-        println!("Extraction result: {:?}", result);
-        assert!(
-            result.is_ok(),
-            "Failed to extract JSON with special characters: {:?}",
-            result.err()
-        );
-        let json = result.unwrap();
+        let doc = YtHtmlDocument::from(html.to_string());
+        let json = doc
+            .to_json::<Value>()
+            .expect("Failed to extract JSON with special characters");
         assert_eq!(
             json["key"].as_str().unwrap().trim(),
             "value with \"quotes\" and \n newline"
@@ -273,27 +228,23 @@ mod tests {
 
     #[test]
     fn test_extraction_with_multiple_occurrences() {
-        let html_content_multiple = r#"
+        let html = r#"
             <script nonce="gZTn8MILMQFuWon1rDk2VA">var ytInitialData = {"first": true};</script>
             <script nonce="gZTn8MILMQFuWon1rDk2VA">
                 var ytInitialData = {"second": true};
             </script>
         "#;
 
-        let result = extract_json_from_script::<Value>(html_content_multiple);
-        println!("Extraction result: {:?}", result);
-        assert!(
-            result.is_ok(),
-            "Failed to extract first JSON: {:?}",
-            result.err()
-        );
-        let json = result.unwrap();
+        let doc = YtHtmlDocument::from(html.to_string());
+        let json = doc
+            .to_json::<Value>()
+            .expect("Failed to extract first JSON");
         assert_eq!(json, json!({"first": true}));
     }
 
     #[test]
     fn test_extraction_with_no_data() {
-        let html_content_no_data = r#"
+        let html = r#"
             <html>
                 <body>
                     <p>No ytInitialData here</p>
@@ -301,23 +252,23 @@ mod tests {
             </html>
         "#;
 
-        let result = extract_json_from_script::<Value>(html_content_no_data);
-        println!("Extraction result: {:?}", result);
-        assert!(result.is_err(), "Expected an error, but got: {:?}", result);
+        let doc = YtHtmlDocument::from(html.to_string());
+        let result = doc.to_json::<Value>();
+        assert!(result.is_err());
         assert!(matches!(result, Err(Error::ParseError(_))));
     }
 
     #[test]
     fn test_extraction_with_invalid_json() {
-        let html_content_invalid_json = r#"
+        let html = r#"
             <script nonce="gZTn8MILMQFuWon1rDk2VA">
                 var ytInitialData = {invalid: json};
             </script>
         "#;
 
-        let result = extract_json_from_script::<Value>(html_content_invalid_json);
-        println!("Extraction result: {:?}", result);
-        assert!(result.is_err(), "Expected an error, but got: {:?}", result);
+        let doc = YtHtmlDocument::from(html.to_string());
+        let result = doc.to_json::<Value>();
+        assert!(result.is_err());
         assert!(matches!(result, Err(Error::ParseError(_))));
     }
 }
