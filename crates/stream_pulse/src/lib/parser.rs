@@ -45,7 +45,7 @@ pub fn parse_streams(json: &Value) -> Result<Vec<Stream>, Error> {
                 if video_renderer.upcoming_event_data.is_some() || video_renderer.view_count_text.is_none() || video_renderer.published_time_text.is_none() {
                     continue;
                 }
-                let StreamWrapper(stream) = StreamWrapper::try_from(video_renderer)?;
+                let stream = Stream::try_from(video_renderer)?;
 
                 //XXX: Skip if duration is < 10 minutes
                 if let Some(duration_secs) = parse_duration_to_seconds(&stream.duration) {
@@ -83,10 +83,7 @@ fn parse_duration_to_seconds(duration_str: &str) -> Option<u64> {
     }
 }
 
-#[derive(Debug)]
-struct StreamWrapper(Stream);
-
-impl TryFrom<VideoRenderer> for StreamWrapper {
+impl TryFrom<VideoRenderer> for Stream {
     type Error = Error;
 
     /// Attempts to create a `Stream` from a videoRenderer object.
@@ -139,7 +136,7 @@ impl TryFrom<VideoRenderer> for StreamWrapper {
             ..Default::default()
         };
 
-        Ok(StreamWrapper(stream))
+        Ok(stream)
     }
 }
 
