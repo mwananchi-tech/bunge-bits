@@ -1,10 +1,8 @@
 use std::sync::LazyLock;
 
 use anyhow::Context;
-use itertools::{Either, Itertools};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, PgPool};
 
-use super::{BulkInsertResult, FailedInsert, InsertFailReason};
 use crate::{datastore::DataStore, domain::TIME_AGO_REGEX};
 
 static MIGRATOR: Migrator = sqlx::migrate!();
@@ -48,6 +46,7 @@ impl DataStore for PgDataStore {
         struct VideoId {
             video_id: String,
         }
+
         let streams =
             sqlx::query_as::<_, VideoId>("SELECT video_id FROM streams WHERE video_id = ANY($1)")
                 .bind(video_ids)
@@ -61,83 +60,36 @@ impl DataStore for PgDataStore {
         Ok(streams.into_iter().map(|s| s.video_id).collect())
     }
 
-    async fn bulk_insert_streams(
-        &self,
-        streams: &[crate::Stream],
-    ) -> anyhow::Result<BulkInsertResult> {
-        let (valid_streams, invalid_stream_date_errors): (Vec<_>, Vec<_>) =
-            streams.iter().partition_map(|stream| {
-                if let Some(timestamp) = stream.timestamp_from_time_ago() {
-                    Either::Left((stream.clone(), timestamp))
-                } else {
-                    let reason = InsertFailReason::InvalidStreamedDate {
-                        malformed_date: stream.streamed_date.clone(),
-                    };
-                    Either::Right(FailedInsert {
-                        video_id: stream.video_id.clone(),
-                        reason,
-                    })
-                }
-            });
+    async fn insert_stream(&self, stream: &crate::Stream) -> anyhow::Result<()> {
+        let timestamp = stream
+            .timestamp_from_time_ago()
+            .ok_or_else(|| anyhow::anyhow!("Invalid streamed_date: {}", stream.streamed_date))?;
 
-        let (video_ids, title, view_counts, streamed_dates, durations, summaries, timestamp_md): (
-            Vec<_>,
-            Vec<_>,
-            Vec<_>,
-            Vec<_>,
-            Vec<_>,
-            Vec<_>,
-            Vec<_>,
-        ) = valid_streams
-            .iter()
-            .map(|(stream, stream_date)| {
-                (
-                    stream.video_id.clone(),
-                    stream.title.clone(),
-                    stream.view_count.clone(),
-                    *stream_date,
-                    stream.duration.clone(),
-                    stream.summary_md.clone(),
-                    stream.timestamp_md.clone(),
-                )
-            })
-            .multiunzip();
-
-        let pg_result = sqlx::query(
-            "
-            INSERT INTO streams (video_id, title, view_count,stream_timestamp, duration, summary_md, timestamp_md)
-            SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[], $4::timestamptz[], $5::text[], $6::text[], $7::text[]) ON CONFLICT DO NOTHING
-            "
+        sqlx::query(
+        r#"
+            INSERT INTO streams (video_id, title, view_count, stream_timestamp, duration, summary_md, timestamp_md)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT DO NOTHING
+            "#
         )
-        .bind(&video_ids[..])
-        .bind(&title[..])
-        .bind(&view_counts[..])
-        .bind(&streamed_dates[..])
-        .bind(&durations[..])
-        .bind(&summaries[..])
-        .bind(&timestamp_md[..])
+        .bind(&stream.video_id)
+        .bind(&stream.title)
+        .bind(&stream.view_count)
+        .bind(timestamp)
+        .bind(&stream.duration)
+        .bind(&stream.summary_md)
+        .bind(&stream.timestamp_md)
         .execute(&self.pool)
         .await
         .inspect_err(|err| {
             tracing::error!(
                 error = ?err,
-                "Failed to execute bulk insert for streams"
+                video_id = %stream.video_id,
+                "Failed to insert stream"
             )
         })
-        .context("Failed to execute bulk insert for streams")?;
+        .context("Failed to insert stream")?;
 
-        let successful_inserts = pg_result.rows_affected() as usize;
-
-        if !invalid_stream_date_errors.is_empty() {
-            tracing::warn!(
-                invalid_stream_date_errors = ?invalid_stream_date_errors,
-                "Some streams had invalid streamed_date formats and were not inserted"
-            )
-        }
-
-        Ok(BulkInsertResult {
-            successful_inserts,
-            failed_inserts: invalid_stream_date_errors,
-        })
+        Ok(())
     }
 }

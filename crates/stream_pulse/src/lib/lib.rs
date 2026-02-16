@@ -7,6 +7,7 @@ mod processor;
 pub mod summary;
 pub mod tracing;
 pub mod types;
+mod yt;
 
 pub use app::{cron::start_cron, server::start_server, AppState};
 pub use llm::openai;
