@@ -22,6 +22,9 @@ Use this exact structure:
 
 ## Memorable Moments
 - ...
+
+## Notable quotes
+- ...
 ```
 
 ## Rules
