@@ -31,7 +31,10 @@ futures = "0.3.30"
 itertools = { workspace = true }
 rayon = "1.5"
 regex = "1.10.6"
-reqwest = { version = "0.13", features = ["json", "multipart"] }
+reqwest = { version = "0.11", features = ["json", "multipart"] }
+reqwest-middleware = "0.2"
+reqwest-retry = "0.2"
+reqwest-retry-after = "0.1"
 sentry = "0.46"
 sentry-tracing = "0.46"
 serde = { workspace = true }

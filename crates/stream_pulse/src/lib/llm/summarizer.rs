@@ -11,7 +11,7 @@ pub trait Summarizer {
     fn summarize(
         &self,
         content: &str,
-    ) -> impl Future<Output = Result<SummaryResponse, Self::Error>> + Send + Sync;
+    ) -> impl Future<Output = Result<SummaryResponse, Self::Error>> + Send;
 
     fn count_tokens(&self, _content: &str) -> Result<usize, Self::Error> {
         Ok(0)
