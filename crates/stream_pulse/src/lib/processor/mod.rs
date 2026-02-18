@@ -14,7 +14,7 @@ use crate::{
     AudioInput, Summarizer, Transcriber,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LiveStreamProcessor<D, T, S, A, P>
 where
     D: DataStore + Send + Sync + 'static,
