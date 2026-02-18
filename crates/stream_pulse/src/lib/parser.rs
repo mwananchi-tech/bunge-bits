@@ -268,4 +268,59 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(result, Err(Error::ParseError(_))));
     }
+
+    #[test]
+    fn test_fixture_parses_streams() {
+        let html = include_str!("../../tests/fixtures/yt.html");
+        let doc = YtHtmlDocument::new(html.to_string());
+
+        let json = doc
+            .to_json::<Value>()
+            .expect("Failed to extract ytInitialData");
+
+        let streams = parse_streams(&json).expect("Failed to parse streams");
+
+        assert!(
+            !streams.is_empty(),
+            "Fixture should contain parseable streams"
+        );
+        assert!(
+            streams.len() >= 10,
+            "Expected at least 10 streams, got {}",
+            streams.len()
+        );
+
+        for stream in &streams {
+            assert!(!stream.video_id.is_empty(), "video_id should not be empty");
+            assert!(!stream.title.is_empty(), "title should not be empty");
+            assert!(
+                !stream.duration.is_empty(),
+                "duration should not be empty for {}",
+                stream.video_id
+            );
+            assert!(
+                !stream.streamed_date.is_empty(),
+                "streamed_date should not be empty for {}",
+                stream.video_id
+            );
+
+            // duration should be >= 10 minutes (parser filters < 600s)
+            let parts: Vec<u64> = stream
+                .duration
+                .split(':')
+                .filter_map(|p| p.parse().ok())
+                .collect();
+            let secs = match parts.len() {
+                3 => parts[0] * 3600 + parts[1] * 60 + parts[2],
+                2 => parts[0] * 60 + parts[1],
+                _ => 0,
+            };
+            assert!(
+                secs >= 600,
+                "Stream {} duration {}s should be >= 600s",
+                stream.video_id,
+                secs
+            );
+        }
+    }
 }
