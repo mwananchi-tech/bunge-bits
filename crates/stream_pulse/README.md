@@ -4,50 +4,51 @@ The core engine powering `bunge-bits`. This crate handles all logic related to t
 
 ## Development setup
 
-To run the `stream_pulse_cron` binary, set the following environment variables:
+To run the `stream-pulse` binary, set the following environment variables:
 
 ```bash
 OPENAI_API_KEY="<your_openai_api_key>"
 DATABASE_URL="<your_postgres_database_url>"
 YTDLP_COOKIES_PATH="<path to your cookies.txt file>" # required in order to authenticate to yt, especially in a cloud env
 SENTRY_DSN="<optional_sentry_dsn>" # can be omitted for local development
-MAX_STREAMS_TO_PROCESS=3 # optional config of the maxim number of streams that can be processed in a given run
+MAX_STREAMS_TO_PROCESS=3 # optional config of the maximum number of streams that can be processed in a given run
 CRON_SCHEDULE="<cron_expression>" # optional cron schedule to run the pipeline. Defaults to "0 0 */4 * * *" (every 4 hours)
 ```
 
 Please read [this guide](../ytdlp_bindings/README.md#using-cookiestxt-for-authenticated-youtube-downloads) on how to setup your `cookies.txt` file.
 
-You can define these variables directly in your shell or in a `.env` file placed at the root of the Cargo workspace.
-
 ## Running the CLI
 
-For quick local testing and development, run the `dev-cli` example:
+For quick local testing and one-off runs:
 
 ```bash
-cargo run --example dev-cli -- fetch-and-process-streams --max-streams 2
+cargo run --bin stream-pulse -- run --max-streams 2
 ```
 
-The `--max-streams` flag is optional (default: 3). This CLI is intended for local development, prototyping, or ad-hoc tasks. It is not used in production.
+The `--max-streams` flag is optional (default: 3). This runs the pipeline once and exits.
 
-## Running the Production Cron Workflow
+## Running the Cron Scheduler
 
-To run the actual scheduled production workflow:
+To start the scheduled production workflow:
 
 ```bash
-cargo run --package stream-pulse-cron
+cargo run --bin stream-pulse -- cron
 ```
 
-This binary is designed to run as a background job (e.g. via cron or systemd timer) and handles automated stream fetching and summarization.
+With a custom schedule:
+
+```bash
+cargo run --bin stream-pulse -- cron --schedule "0 */30 * * * *"
+```
 
 ## Running with Docker
 
-To run `stream-pulse-cron` reliably with environment configuration and persistent file storage, use the following command:
+To run `stream-pulse` reliably with environment configuration and persistent file storage:
 
 ```bash
 docker run -d \
-  --name stream-pulse-cron \
+  --name stream-pulse \
   --restart unless-stopped \
-  -p 8001:8001 \ # for the status check HTTP server
   -e OPENAI_API_KEY="..." \
   -e DATABASE_URL="..." \
   -e SENTRY_DSN="..." \
@@ -56,7 +57,20 @@ docker run -d \
   -e YTDLP_COOKIES_PATH=/app/cookies.txt \
   -v /path/to/cookies.txt:/app/cookies.txt \
   -v /var/tmp/bunge-bits:/var/tmp/bunge-bits \
-  ghcr.io/c12i/bunge-bits/stream-pulse-cron:latest
+  ghcr.io/c12i/bunge-bits/stream-pulse:latest
+```
+
+Running the CLI via docker:
+
+```bash
+docker run --rm \
+  -e OPENAI_API_KEY="..." \
+  -e DATABASE_URL="..." \
+  -e YTDLP_COOKIES_PATH=/app/cookies.txt \
+  -v /path/to/cookies.txt:/app/cookies.txt \
+  -v /var/tmp/bunge-bits:/var/tmp/bunge-bits \
+  ghcr.io/c12i/bunge-bits/stream-pulse:latest \
+  stream-pulse run --max-streams 2
 ```
 
 ### Explanation of Volume Mounts

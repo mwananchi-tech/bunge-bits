@@ -7,7 +7,7 @@ use crate::{
     LiveStreamProcessor, Summarizer, Transcriber,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ChunkingConfig {
     pub chunk_duration_seconds: u16,
 }

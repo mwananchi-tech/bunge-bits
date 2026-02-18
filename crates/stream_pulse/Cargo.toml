@@ -6,8 +6,8 @@ edition.workspace = true
 categories.workspace = true
 
 [[bin]]
-name = "stream-pulse-cron"
-path = "./src/bin/stream-pulse-cron.rs"
+name = "stream-pulse"
+path = "./src/bin/stream-pulse.rs"
 
 [lib]
 name = "stream_pulse"
@@ -16,8 +16,16 @@ path = "./src/lib/lib.rs"
 [dependencies]
 another-tiktoken-rs = { version = "0.1.2", features = ["async-openai"] }
 anyhow = "1.0"
+apalis = { version = "1.0.0-rc.3", features = [
+  "catch-panic",
+  "retry",
+  "sentry",
+] }
+apalis-cron = "1.0.0-rc.3"
 chrono = { workspace = true }
 chrono-tz = "0.10.0"
+clap = { version = "4.5.40", features = ["derive", "env"] }
+cron = "0.15.0"
 dotenvy = "0.15.7"
 futures = "0.3.30"
 itertools = { workspace = true }
