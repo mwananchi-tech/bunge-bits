@@ -10,7 +10,7 @@ pub trait Transcriber {
     fn transcribe(
         &self,
         audio_input: AudioInput,
-    ) -> impl Future<Output = Result<TranscribeResponse, Self::Error>> + Send + Sync;
+    ) -> impl Future<Output = Result<TranscribeResponse, Self::Error>> + Send;
 }
 
 #[derive(Debug, Clone)]

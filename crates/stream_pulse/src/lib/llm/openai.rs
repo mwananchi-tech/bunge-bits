@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use another_tiktoken_rs::cl100k_base;
-use reqwest::Client;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+use reqwest_retry_after::RetryAfterMiddleware;
 use serde::Deserialize;
 use ytdlp_bindings::AudioProcessor;
 
@@ -12,7 +14,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct OpenAIClient<F: AudioProcessor> {
-    client: Client,
+    client: ClientWithMiddleware,
     api_key: String,
     ffmpeg: F,
     base_url: String,
@@ -22,6 +24,8 @@ pub struct OpenAIClient<F: AudioProcessor> {
 pub enum OpenAIError {
     #[error("HTTP error: {0}")]
     Request(#[from] reqwest::Error),
+    #[error("HTTP middleare error: {0}")]
+    RequestMiddleware(#[from] reqwest_middleware::Error),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("API error: {status} - {message}")]
@@ -36,8 +40,13 @@ impl<F: AudioProcessor> OpenAIClient<F> {
     const SYSTEM_PROMPT: &str = include_str!("./prompts/system_0.txt");
 
     pub fn new(api_key: impl Into<String>, ffmpeg: F) -> Self {
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+        let client = ClientBuilder::new(reqwest::Client::new())
+            .with(RetryAfterMiddleware::new())
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build();
         Self {
-            client: Client::new(),
+            client,
             api_key: api_key.into(),
             base_url: "https://api.openai.com/v1".into(),
             ffmpeg,
