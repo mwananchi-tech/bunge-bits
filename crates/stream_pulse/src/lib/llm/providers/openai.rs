@@ -37,7 +37,7 @@ pub enum OpenAIError {
 }
 
 impl<F: AudioProcessor> OpenAIClient<F> {
-    const SYSTEM_PROMPT: &str = include_str!("./prompts/system_0.txt");
+    const SYSTEM_PROMPT: &str = include_str!("../prompts/system_0.txt");
 
     pub fn new(api_key: impl Into<String>, ffmpeg: F) -> Self {
         let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
