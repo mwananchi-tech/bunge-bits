@@ -95,7 +95,7 @@ async fn handle_tick(_tick: Tick, config: Data<Config>) -> anyhow::Result<()> {
     run_pipeline(&config).await
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
 
