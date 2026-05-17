@@ -1,0 +1,16 @@
+{
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "bungebits.ke" }],
+      "destination": "https://bunge-bits.mwananchi.tech/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.bungebits.ke" }],
+      "destination": "https://bunge-bits.mwananchi.tech/$1",
+      "permanent": true
+    }
+  ]
+}
