@@ -5,7 +5,6 @@ export const meta: MetaFunction = () => [
   { name: "description", content: "Learn more about the Bunge Bits project" },
 ];
 
-
 export default function AboutPage() {
   return (
     <div className="max-w-3xl mx-auto px-8 py-12 space-y-6">
@@ -60,8 +59,9 @@ export default function AboutPage() {
         <p className="font-semibold">Bunge Bits is being succeeded by Bunge Hub.</p>
         <p className="text-sm text-muted-foreground">
           Bunge Hub is a new platform built on Kenya’s official Hansard rather than
-          AI-generated transcripts, making it more accurate, sustainable, and comprehensive.
-          It covers every bill, debate, and contribution from the 13th Parliament.
+          AI-generated transcripts, making it more accurate, sustainable, and
+          comprehensive. It covers every bill, debate, and contribution from the 13th
+          Parliament.
         </p>
         <a
           href="https://collinsmuriuki.xyz/from-bunge-bits-to-bunge-hub/"
@@ -75,4 +75,3 @@ export default function AboutPage() {
     </div>
   );
 }
-
